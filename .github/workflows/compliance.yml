@@ -1,0 +1,71 @@
+name: Advanced FOSS Compliance CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+jobs:
+  compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake python3-pip pipx jq
+          pipx ensurepath
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r compliance/requirements.txt
+
+      - name: Install ScanCode via pipx
+        run: |
+          pipx install scancode-toolkit
+          scancode --version
+
+      - name: Build project (CMake)
+        run: |
+          mkdir -p build && cd build
+          cmake ..
+          make -j2 || true
+          cd ..
+
+      - name: Run ScanCode (license scan)
+        run: |
+          mkdir -p reports
+          scancode -l -c -i -n 2 --json-pp reports/scancode.json .
+
+      - name: Filter used third_party files (CMake produced build info)
+        run: |
+          # Attempt to collect used object files / linked libs by inspecting build directory
+          mkdir -p reports
+          echo "Collecting used third_party files (approximation)"
+          # naive: find object and shared libs in build/
+          find build -type f -name "*.o" -o -name "*.so" -o -name "*.a" > reports/used_files.txt || true
+          echo "Used files:"
+          cat reports/used_files.txt || true
+
+      - name: Validate licenses (allowlist)
+        run: |
+          python3 compliance/validate_licenses.py reports/scancode.json compliance/license_allowlist.json
+
+      - name: Generate NOTICE
+        run: |
+          python3 compliance/generate_notice.py reports/scancode.json reports/NOTICE
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-reports
+          path: reports/

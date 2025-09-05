@@ -1,0 +1,14 @@
+{
+  "allowed_spdx_ids": [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MPL-2.0"
+  ],
+  "denied_spdx_ids": [
+    "GPL-3.0-only",
+    "AGPL-3.0-only"
+  ]
+}
